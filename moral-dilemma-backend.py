@@ -154,7 +154,8 @@ async def generate_angel_response_stream(message: str, client: Fireworks) -> Asy
 
 async def generate_devil_response_stream(message: str, client: Fireworks) -> AsyncGenerator[str, None]:
     stream = client.chat.completions.create(
-        model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        # model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        model="accounts/fireworks/models/deepseek-v3",
         messages=[
             {"role": "system", "content": DEVIL_SYSTEM_PROMPT},
             {"role": "user", "content": message}
