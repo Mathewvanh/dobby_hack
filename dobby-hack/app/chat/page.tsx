@@ -62,8 +62,8 @@ export default function DualAgentChat() {
         role: 'angel' | 'devil'
     ): Promise<StreamResponse> => {
         const endpoint = role === 'angel'
-            ? 'http://localhost:5000/angel'
-            : 'http://localhost:5000/devil';
+            ? 'http://localhost:8000/api/angel/stream'
+            : 'http://localhost:8000/api/devil/stream';
 
         try {
             const response = await fetch(endpoint, {
@@ -71,8 +71,6 @@ export default function DualAgentChat() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message })
             });
-
-            if (!response.ok) throw new Error(`Error from ${role} agent`);
 
             const reader = response.body?.getReader();
             if (!reader) throw new Error('No reader available');
@@ -84,22 +82,44 @@ export default function DualAgentChat() {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                accumulatedContent += chunk;
+                // Decode the chunk and split by newlines to handle multiple SSE events
+                const text = decoder.decode(value);
+                const lines = text.split('\n');
 
-                setMessages(prev => {
-                    const newMessages = [...prev];
-                    const agentIndex = newMessages.findIndex(
-                        m => m.role === role && m.isProcessing
-                    );
-                    if (agentIndex !== -1) {
-                        newMessages[agentIndex] = {
-                            ...newMessages[agentIndex],
-                            content: accumulatedContent,
-                        };
+                for (const line of lines) {
+                    // Only process lines that start with "data: "
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6); // Remove "data: " prefix
+
+                        // Check if it's the done signal
+                        if (data === '[DONE]') break;
+
+                        try {
+                            // Parse the JSON chunk
+                            const parsed = JSON.parse(data);
+                            if (parsed.chunk) {
+                                accumulatedContent += parsed.chunk;
+
+                                // Update UI with accumulated content
+                                setMessages(prev => {
+                                    const newMessages = [...prev];
+                                    const agentIndex = newMessages.findIndex(
+                                        m => m.role === role && m.isProcessing
+                                    );
+                                    if (agentIndex !== -1) {
+                                        newMessages[agentIndex] = {
+                                            ...newMessages[agentIndex],
+                                            content: accumulatedContent,
+                                        };
+                                    }
+                                    return newMessages;
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Error parsing chunk:', e, data);
+                        }
                     }
-                    return newMessages;
-                });
+                }
             }
 
             return { role, content: accumulatedContent };
@@ -117,23 +137,27 @@ export default function DualAgentChat() {
         setInput('');
         setIsStreaming(true);
 
+        // Add user message
         setMessages(prev => [...prev, {
             role: 'user',
             content: userMessage,
             avatar: '👤'
         }]);
 
+        // Add placeholder messages for both AIs
         setMessages(prev => [...prev,
-            { role: 'angel', content: '...', isProcessing: true, avatar: '👼' },
-            { role: 'devil', content: '...', isProcessing: true, avatar: '😈' }
+            { role: 'angel', content: 'Thinking...', isProcessing: true, avatar: '👼' },
+            { role: 'devil', content: 'Thinking...', isProcessing: true, avatar: '😈' }
         ]);
 
         try {
+            // Stream both responses simultaneously
             const [angelResponse, devilResponse] = await Promise.all([
                 streamFromAgent(userMessage, 'angel'),
                 streamFromAgent(userMessage, 'devil')
             ]);
 
+            // Update final messages (though they should already be updated by the streaming)
             setMessages(prev => prev.map(msg => {
                 if (msg.isProcessing) {
                     if (msg.role === 'angel') {
