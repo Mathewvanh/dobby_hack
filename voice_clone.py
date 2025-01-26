@@ -86,31 +86,15 @@ def main() -> None:
     # Hardcoded data for testing
     voice = clone_voice(
         client,
-        "Ah Boy",
-        "A warm and patient Singaporean male voice with a gentle tone. "
-        "Perfect for having conversations with elderly relatives and grandparents",
+        "Joker",
+        "You are the joker from batman, mean, raw and unfiltered",
         [
-            "./data/sample.m4a",
+            "/Users/wenjiehu/Developer/dobby/dobby_hack/data/Joker voice.m4a",
         ]
     )
     audio = text_to_speech(client, voice, 
-            "Hi, I'm Devin! I am still at work."
-            "Grandma! How are you today?"
-            "Have you eaten?"
-            "Remember to take your medicine before bed, okay?"
-            "I will call you tomorrow to check in."
-            "Please go home soon if you're still outside."
-            "See you next week!"
-            "Bye Bye!"
-            "你吃饭了吗？"
-            "记得睡前要吃药，好吗？"
-            "我明天会打电话给你。"
-            "Kalau masih di luar, baliklah rumah awal."
-            "Jumpa minggu depan!"
-            "Selamat tinggal!"
-            "நீங்கள் வெளியே இருந்தால் விரைவில் வீட்டுக்கு போங்க."
-            "அடுத்த வாரம் சந்திப்போம்!"
-            "பிரியா!"
+            "Why so serious?"
+            "I'm not a monster, I'm just ahead of the curve."
     )
     play(audio)
 
