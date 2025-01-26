@@ -15,26 +15,33 @@ import {
     Chip,
     CircularProgress,
     Avatar,
-    useTheme
+    useTheme, Tooltip
 } from '@mui/material';
 import {
     Send as SendIcon,
     Psychology as PsychologyIcon,
     AutoAwesome as AutoAwesomeIcon,
-    Warning as WarningIcon
+    Warning as WarningIcon,
+    Mic as MicIcon,
+    MicOff as MicOffIcon,
+    GraphicEq as WaveformIcon,
+    PlayArrow as PlayArrowIcon,
+    Stop as StopIcon,
 } from '@mui/icons-material';
 
 interface Message {
-    role: 'user' | 'conservative' | 'unhinged' | 'system';
+    role: 'user' | 'angel' | 'devil' | 'system';
     content: string;
     avatar?: string;
     isProcessing?: boolean;
+    isVoicePlaying?: boolean;
 }
 
 interface StreamResponse {
-    role: 'conservative' | 'unhinged';
+    role: 'angel' | 'devil';
     content: string;
 }
+
 
 export default function DualAgentChat() {
     const theme = useTheme();
@@ -48,14 +55,15 @@ export default function DualAgentChat() {
     const [input, setInput] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
+    const [isListening, setIsListening] = useState(false);
+    const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
     const streamFromAgent = async (
         message: string,
-        role: 'conservative' | 'unhinged'
+        role: 'angel' | 'devil'
     ): Promise<StreamResponse> => {
-        const endpoint = role === 'conservative'
-            ? 'http://localhost:5000/conservative'
-            : 'http://localhost:5000/unhinged';
+        const endpoint = role === 'angel'
+            ? 'http://localhost:5000/angel'
+            : 'http://localhost:5000/devil';
 
         try {
             const response = await fetch(endpoint, {
@@ -116,22 +124,22 @@ export default function DualAgentChat() {
         }]);
 
         setMessages(prev => [...prev,
-            { role: 'conservative', content: '...', isProcessing: true, avatar: '👼' },
-            { role: 'unhinged', content: '...', isProcessing: true, avatar: '😈' }
+            { role: 'angel', content: '...', isProcessing: true, avatar: '👼' },
+            { role: 'devil', content: '...', isProcessing: true, avatar: '😈' }
         ]);
 
         try {
-            const [conservativeResponse, unhingedResponse] = await Promise.all([
-                streamFromAgent(userMessage, 'conservative'),
-                streamFromAgent(userMessage, 'unhinged')
+            const [angelResponse, devilResponse] = await Promise.all([
+                streamFromAgent(userMessage, 'angel'),
+                streamFromAgent(userMessage, 'devil')
             ]);
 
             setMessages(prev => prev.map(msg => {
                 if (msg.isProcessing) {
-                    if (msg.role === 'conservative') {
-                        return { ...msg, content: conservativeResponse.content, isProcessing: false };
-                    } else if (msg.role === 'unhinged') {
-                        return { ...msg, content: unhingedResponse.content, isProcessing: false };
+                    if (msg.role === 'angel') {
+                        return { ...msg, content: angelResponse.content, isProcessing: false };
+                    } else if (msg.role === 'devil') {
+                        return { ...msg, content: devilResponse.content, isProcessing: false };
                     }
                 }
                 return msg;
@@ -161,12 +169,12 @@ export default function DualAgentChat() {
                     color: theme.palette.primary.contrastText,
                     alignSelf: 'flex-end'
                 };
-            case 'conservative':
+            case 'angel':
                 return {
                     backgroundColor: theme.palette.info.light,
                     color: theme.palette.info.contrastText
                 };
-            case 'unhinged':
+            case 'devil':
                 return {
                     backgroundColor: theme.palette.error.light,
                     color: theme.palette.error.contrastText
@@ -181,30 +189,62 @@ export default function DualAgentChat() {
 
     return (
         <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-            <AppBar position="static" color="default" elevation={1}>
+            {/* Header */}
+            <AppBar position="static" sx={{ bgcolor: 'white', color: 'text.primary' }}>
                 <Toolbar>
                     <PsychologyIcon sx={{ mr: 2 }} />
-                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
                         AI Council Chamber 🏛️
                     </Typography>
-                    <Chip
-                        icon={<AutoAwesomeIcon />}
-                        label="Conservative AI"
-                        color="primary"
-                        sx={{ mr: 1 }}
-                    />
-                    <Chip
-                        icon={<WarningIcon />}
-                        label="Unhinged AI"
-                        color="error"
-                    />
+                    <Box sx={{
+                        display: 'flex',
+                        gap: 1,
+                        '& .MuiButton-root': {
+                            borderRadius: 2,
+                            px: 2
+                        }
+                    }}>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                bgcolor: 'primary.main',
+                                color: 'white',
+                                px: 2,
+                                py: 0.5,
+                                borderRadius: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1
+                            }}
+                        >
+                            <PsychologyIcon fontSize="small" />
+                            <Typography>angel AI</Typography>
+                        </Paper>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                bgcolor: 'error.main',
+                                color: 'white',
+                                px: 2,
+                                py: 0.5,
+                                borderRadius: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1
+                            }}
+                        >
+                            <WarningIcon fontSize="small" />
+                            <Typography>devil AI</Typography>
+                        </Paper>
+                    </Box>
                 </Toolbar>
             </AppBar>
 
+            {/* Messages Area */}
             <Box sx={{
                 flexGrow: 1,
                 overflow: 'auto',
-                bgcolor: 'grey.50',
+                bgcolor: '#f5f5f5',
                 p: 2
             }}>
                 <Container maxWidth="md">
@@ -218,24 +258,86 @@ export default function DualAgentChat() {
                                 gap: 1
                             }}
                         >
-                            <Avatar sx={{ bgcolor: message.role === 'user' ? 'primary.main' : 'grey.300' }}>
+                            {/* Avatar */}
+                            <Avatar
+                                sx={{
+                                    bgcolor: message.role === 'user'
+                                        ? 'primary.main'
+                                        : message.role === 'angel'
+                                            ? 'info.light'
+                                            : 'error.light'
+                                }}
+                            >
                                 {message.avatar}
                             </Avatar>
+
+                            {/* Message Bubble */}
                             <Paper
                                 elevation={1}
                                 sx={{
                                     p: 2,
                                     maxWidth: '70%',
-                                    ...getMessageStyles(message.role)
+                                    bgcolor: message.role === 'user'
+                                        ? 'primary.main'
+                                        : message.role === 'angel'
+                                            ? '#E3F2FD'
+                                            : '#FFEBEE',
+                                    color: message.role === 'user'
+                                        ? 'white'
+                                        : 'text.primary',
+                                    borderRadius: 2,
+                                    position: 'relative'
                                 }}
                             >
-                                <ReactMarkdown className="prose prose-sm">
-                                    {message.content}
-                                </ReactMarkdown>
+                                <Typography>{message.content}</Typography>
+
+                                {/* Processing Indicator */}
                                 {message.isProcessing && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        mt: 1,
+                                        gap: 1
+                                    }}>
+                                        <CircularProgress size={16} />
                                         <Typography variant="caption">Processing...</Typography>
+                                    </Box>
+                                )}
+
+                                {/* Voice Playback Controls */}
+                                {message.role !== 'user' && !message.isProcessing && (
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        mt: 1,
+                                        gap: 1
+                                    }}>
+                                        <Tooltip title="Play Response">
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => {/* Voice playback function */}}
+                                                sx={{
+                                                    bgcolor: 'background.paper',
+                                                    '&:hover': { bgcolor: 'grey.100' }
+                                                }}
+                                            >
+                                                {message.isVoicePlaying ? (
+                                                    <StopIcon fontSize="small" />
+                                                ) : (
+                                                    <PlayArrowIcon fontSize="small" />
+                                                )}
+                                            </IconButton>
+                                        </Tooltip>
+                                        {message.isVoicePlaying && (
+                                            <Box sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 0.5
+                                            }}>
+                                                <WaveformIcon sx={{ fontSize: 16 }} />
+                                                <Typography variant="caption">Playing...</Typography>
+                                            </Box>
+                                        )}
                                     </Box>
                                 )}
                             </Paper>
@@ -245,34 +347,79 @@ export default function DualAgentChat() {
                 </Container>
             </Box>
 
+            {/* Input Form Area */}
             <Paper
                 component="form"
                 onSubmit={handleSubmit}
                 sx={{
                     p: 2,
-                    borderTop: 1,
+                    borderTop: '1px solid',
                     borderColor: 'divider'
                 }}
                 elevation={3}
             >
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                    <TextField
-                        fullWidth
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask both AIs..."
-                        disabled={isStreaming}
-                        variant="outlined"
-                        size="medium"
-                    />
-                    <IconButton
-                        type="submit"
-                        disabled={isStreaming || !input.trim()}
-                        color="primary"
-                        sx={{ p: '10px' }}
-                    >
-                        {isStreaming ? <CircularProgress size={24} /> : <SendIcon />}
-                    </IconButton>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {/* Voice Controls */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Tooltip title={isListening ? "Stop Recording" : "Start Recording"}>
+                            <IconButton
+                                onClick={() => setIsListening(!isListening)}
+                                disabled={isStreaming}
+                                sx={{
+                                    bgcolor: isListening ? 'error.main' : 'grey.200',
+                                    '&:hover': {
+                                        bgcolor: isListening ? 'error.dark' : 'grey.300',
+                                    }
+                                }}
+                            >
+                                {isListening ? (
+                                    <MicOffIcon sx={{ color: 'white' }} />
+                                ) : (
+                                    <MicIcon />
+                                )}
+                            </IconButton>
+                        </Tooltip>
+                        {isListening && (
+                            <Box sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                bgcolor: 'primary.light',
+                                px: 2,
+                                py: 0.5,
+                                borderRadius: 1,
+                                gap: 1
+                            }}>
+                                <WaveformIcon />
+                                <Typography>Recording...</Typography>
+                            </Box>
+                        )}
+                    </Box>
+
+                    {/* Text Input and Send Button */}
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <TextField
+                            fullWidth
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder={isListening ? "Listening..." : "Ask both AIs..."}
+                            disabled={isStreaming || isListening}
+                            variant="outlined"
+                            size="medium"
+                            sx={{ bgcolor: 'background.paper' }}
+                        />
+                        <IconButton
+                            type="submit"
+                            disabled={isStreaming || !input.trim() || isListening}
+                            color="primary"
+                            sx={{ p: '10px' }}
+                        >
+                            {isStreaming ? (
+                                <CircularProgress size={24} />
+                            ) : (
+                                <SendIcon />
+                            )}
+                        </IconButton>
+                    </Box>
                 </Box>
             </Paper>
         </Box>
