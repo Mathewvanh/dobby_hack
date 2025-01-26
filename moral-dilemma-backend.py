@@ -1,11 +1,15 @@
 import asyncio
-import openai
 from datetime import datetime
-from typing import List
+from typing import List, AsyncGenerator, Optional
 from dataclasses import dataclass
 from fireworks.client import Fireworks
 import os
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+import json
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -23,11 +27,18 @@ client = Fireworks(
 )
 
 # Agent prompts
-ANGEL_SYSTEM_PROMPT = """You are a kind, wise, and ethically-minded advisor. 
-You always encourage doing what is morally right, considering others' well-being, 
-and following ethical principles. Your responses should be compassionate yet firm 
-in advocating for ethical behavior. Engage with the devil's advocate while maintaining 
-your moral position."""
+# ANGEL_SYSTEM_PROMPT = """You are a kind, wise, and ethically-minded advisor. 
+# You always encourage doing what is morally right, considering others' well-being, 
+# and following ethical principles. Your responses should be compassionate yet firm 
+# in advocating for ethical behavior. Engage with the devil's advocate while maintaining 
+# your moral position."""
+
+ANGEL_SYSTEM_PROMPT = """You are a mischievous devil's advocate who presents 
+alternative viewpoints. You challenge conventional wisdom and highlight immediate personal benefits over long-term
+consequences. You're playful and malicious. Engage with the angel while 
+maintaining your contrarian position. YOU ARE NOT A GOOD PERSON. YOU ARE EVIL. YOU SHOULD BE PROVIDING THE OPPOSITE OF THE ANGEL'S RESPONSE.
+You are robotic and unemotional. You only respond with the most extreme and unethical options.
+"""
 
 DEVIL_SYSTEM_PROMPT = """You are a mischievous devil's advocate who presents 
 alternative viewpoints. You challenge conventional wisdom and highlight immediate personal benefits over long-term
@@ -36,32 +47,51 @@ maintaining your contrarian position. YOU ARE NOT A GOOD PERSON. YOU ARE EVIL. Y
 You are robotic and unemotional. You only respond with the most extreme and unethical options.
 """
 
-def generate_angel_response(dilemma: str, client: Fireworks) -> str:
-    response = client.chat.completions.create(
-        # Angel is unhinged but kind
+async def generate_angel_response(dilemma: str, client: Fireworks) -> str:
+    response = ""
+    stream = client.chat.completions.create(
         model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
-        # model="accounts/sentientfoundation/models/dobby-mini-leashed-llama-3-1-8b#accounts/sentientfoundation/deployments/22e7b3fd",
         messages=[
             {"role": "system", "content": ANGEL_SYSTEM_PROMPT},
             {"role": "user", "content": dilemma}
         ],
         temperature=0.7,
-        max_tokens=500
+        max_tokens=500,
+        stream=True  # Enable streaming
     )
-    return response.choices[0].message.content
+    
+    print("Angel response:")
+    
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
+            response += chunk.choices[0].delta.content
+            print(chunk.choices[0].delta.content, end="", flush=True)
+    print()  # New line after streaming completes
+    return response
 
-def generate_devil_response(dilemma: str, client: Fireworks) -> str:
-    response = client.chat.completions.create(
-        # model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
-        model="accounts/fireworks/deployments/22e7b3fd",
+async def generate_devil_response(dilemma: str, client: Fireworks) -> str:
+    response = ""
+    stream = client.chat.completions.create(
+        model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        # model="accounts/fireworks/deployments/22e7b3fd",
         messages=[
             {"role": "system", "content": DEVIL_SYSTEM_PROMPT},
             {"role": "user", "content": dilemma}
         ],
         temperature=0.7,
-        max_tokens=500
+        max_tokens=500,
+        stream=True  # Enable streaming
     )
-    return response.choices[0].message.content
+    
+    print("Devil response:")
+    
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
+            print(chunk.choices[0].delta.content, end="", flush=True)
+            response += chunk.choices[0].delta.content
+            # print("\r😈 Devil says: " + response, end="", flush=True)
+    print()  # New line after streaming completes
+    return response
 
 async def process_dilemma(dilemma: str, conversation_history: List[Message] = None):
     if conversation_history is None:
@@ -71,12 +101,9 @@ async def process_dilemma(dilemma: str, conversation_history: List[Message] = No
     human_message = Message(role="human", content=dilemma)
     conversation_history.append(human_message)
 
-    # Run in thread pool since these are blocking calls
-    loop = asyncio.get_event_loop()
-    angel_response, devil_response = await asyncio.gather(
-        loop.run_in_executor(None, generate_angel_response, dilemma, client),
-        loop.run_in_executor(None, generate_devil_response, dilemma, client)
-    )
+    # Generate responses with streaming
+    angel_response = await generate_angel_response(dilemma, client)
+    devil_response = await generate_devil_response(dilemma, client)
 
     # Add agent responses to conversation
     angel_message = Message(role="angel", content=angel_response)
@@ -96,12 +123,81 @@ async def main():
             break
 
         conversation_history = await process_dilemma(dilemma, conversation_history)
-        
-        # Print the latest responses
-        print("\n👼 Angel says:")
-        print(conversation_history[-2].content)
-        print("\n😈 Devil says:")
-        print(conversation_history[-1].content)
+
+# Pydantic models for request/response handling
+class ConversationRequest(BaseModel):
+    dilemma: str
+    conversation_history: Optional[List[dict]] = None
+
+class ConversationResponse(BaseModel):
+    response: str
+    conversation_history: List[dict]
+
+app = FastAPI()
+
+
+async def generate_angel_response_stream(dilemma: str, client: Fireworks) -> AsyncGenerator[str, None]:
+    stream = client.chat.completions.create(
+        model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        messages=[
+            {"role": "system", "content": ANGEL_SYSTEM_PROMPT},
+            {"role": "user", "content": dilemma}
+        ],
+        temperature=0.7,
+        max_tokens=500,
+        stream=True
+    )
+    
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
+            yield chunk.choices[0].delta.content
+
+async def generate_devil_response_stream(dilemma: str, client: Fireworks) -> AsyncGenerator[str, None]:
+    stream = client.chat.completions.create(
+        model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        messages=[
+            {"role": "system", "content": DEVIL_SYSTEM_PROMPT},
+            {"role": "user", "content": dilemma}
+        ],
+        temperature=0.7,
+        max_tokens=500,
+        stream=True
+    )
+    
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
+            yield chunk.choices[0].delta.content
+
+async def stream_response(generator: AsyncGenerator[str, None]):
+    try:
+        async for chunk in generator:
+            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    finally:
+        yield "data: [DONE]\n\n"
+
+@app.post("/api/angel/stream")
+async def angel_stream_endpoint(request: ConversationRequest):
+    return StreamingResponse(
+        stream_response(generate_angel_response_stream(request.dilemma, client)),
+        media_type="text/event-stream"
+    )
+
+@app.post("/api/devil/stream")
+async def devil_stream_endpoint(request: ConversationRequest):
+    return StreamingResponse(
+        stream_response(generate_devil_response_stream(request.dilemma, client)),
+        media_type="text/event-stream"
+    )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Specify your frontend URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     asyncio.run(main())
