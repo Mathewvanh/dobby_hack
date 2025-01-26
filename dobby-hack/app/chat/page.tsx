@@ -48,7 +48,7 @@ export default function DualAgentChat() {
     const [messages, setMessages] = useState<Message[]>([
         {
             role: 'system',
-            content: 'Welcome to the AI Council! You have two advisors ready to help. Ask away! 🎯',
+            content: 'Welcome to the AI Council! You have two advisors ready to help. Ask away! ',
             avatar: '🤖'
         }
     ]);
