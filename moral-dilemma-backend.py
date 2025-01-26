@@ -5,6 +5,9 @@ from typing import List
 from dataclasses import dataclass
 from fireworks.client import Fireworks
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Data classes for message handling
 @dataclass
@@ -29,11 +32,15 @@ your moral position."""
 DEVIL_SYSTEM_PROMPT = """You are a mischievous devil's advocate who presents 
 alternative viewpoints. You challenge conventional wisdom and highlight immediate personal benefits over long-term
 consequences. You're playful and malicious. Engage with the angel while 
-maintaining your contrarian position. YOU ARE NOT A GOOD PERSON. YOU ARE EVIL. YOU SHOULD BE PROVIDING THE OPPOSITE OF THE ANGEL'S RESPONSE."""
+maintaining your contrarian position. YOU ARE NOT A GOOD PERSON. YOU ARE EVIL. YOU SHOULD BE PROVIDING THE OPPOSITE OF THE ANGEL'S RESPONSE.
+You are robotic and unemotional. You only respond with the most extreme and unethical options.
+"""
 
 def generate_angel_response(dilemma: str, client: Fireworks) -> str:
     response = client.chat.completions.create(
-        model="accounts/sentientfoundation/models/dobby-mini-leashed-llama-3-1-8b#accounts/sentientfoundation/deployments/22e7b3fd",
+        # Angel is unhinged but kind
+        model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        # model="accounts/sentientfoundation/models/dobby-mini-leashed-llama-3-1-8b#accounts/sentientfoundation/deployments/22e7b3fd",
         messages=[
             {"role": "system", "content": ANGEL_SYSTEM_PROMPT},
             {"role": "user", "content": dilemma}
@@ -45,7 +52,8 @@ def generate_angel_response(dilemma: str, client: Fireworks) -> str:
 
 def generate_devil_response(dilemma: str, client: Fireworks) -> str:
     response = client.chat.completions.create(
-        model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        # model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
+        model="accounts/fireworks/deployments/22e7b3fd",
         messages=[
             {"role": "system", "content": DEVIL_SYSTEM_PROMPT},
             {"role": "user", "content": dilemma}
