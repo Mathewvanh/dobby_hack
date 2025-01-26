@@ -47,13 +47,13 @@ maintaining your contrarian position. YOU ARE NOT A GOOD PERSON. YOU ARE EVIL. Y
 You are robotic and unemotional. You only respond with the most extreme and unethical options.
 """
 
-async def generate_angel_response(dilemma: str, client: Fireworks) -> str:
+async def generate_angel_response(message: str, client: Fireworks) -> str:
     response = ""
     stream = client.chat.completions.create(
         model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
         messages=[
             {"role": "system", "content": ANGEL_SYSTEM_PROMPT},
-            {"role": "user", "content": dilemma}
+            {"role": "user", "content": message}
         ],
         temperature=0.7,
         max_tokens=500,
@@ -69,14 +69,14 @@ async def generate_angel_response(dilemma: str, client: Fireworks) -> str:
     print()  # New line after streaming completes
     return response
 
-async def generate_devil_response(dilemma: str, client: Fireworks) -> str:
+async def generate_devil_response(message: str, client: Fireworks) -> str:
     response = ""
     stream = client.chat.completions.create(
         model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
         # model="accounts/fireworks/deployments/22e7b3fd",
         messages=[
             {"role": "system", "content": DEVIL_SYSTEM_PROMPT},
-            {"role": "user", "content": dilemma}
+            {"role": "user", "content": message}
         ],
         temperature=0.7,
         max_tokens=500,
@@ -93,17 +93,17 @@ async def generate_devil_response(dilemma: str, client: Fireworks) -> str:
     print()  # New line after streaming completes
     return response
 
-async def process_dilemma(dilemma: str, conversation_history: List[Message] = None):
+async def process_dilemma(message: str, conversation_history: List[Message] = None):
     if conversation_history is None:
         conversation_history = []
 
     # Add human message
-    human_message = Message(role="human", content=dilemma)
+    human_message = Message(role="human", content=message)
     conversation_history.append(human_message)
 
     # Generate responses with streaming
-    angel_response = await generate_angel_response(dilemma, client)
-    devil_response = await generate_devil_response(dilemma, client)
+    angel_response = await generate_angel_response(message, client)
+    devil_response = await generate_devil_response(message, client)
 
     # Add agent responses to conversation
     angel_message = Message(role="angel", content=angel_response)
@@ -118,15 +118,15 @@ async def main():
     print("Type 'quit' to exit\n")
 
     while True:
-        dilemma = input("\nEnter your moral dilemma: ").strip()
-        if dilemma.lower() == 'quit':
+        message = input("\nEnter your message: ").strip()
+        if message.lower() == 'quit':
             break
 
-        conversation_history = await process_dilemma(dilemma, conversation_history)
+        conversation_history = await process_dilemma(message, conversation_history)
 
 # Pydantic models for request/response handling
 class ConversationRequest(BaseModel):
-    dilemma: str
+    message: str
     conversation_history: Optional[List[dict]] = None
 
 class ConversationResponse(BaseModel):
@@ -136,12 +136,12 @@ class ConversationResponse(BaseModel):
 app = FastAPI()
 
 
-async def generate_angel_response_stream(dilemma: str, client: Fireworks) -> AsyncGenerator[str, None]:
+async def generate_angel_response_stream(message: str, client: Fireworks) -> AsyncGenerator[str, None]:
     stream = client.chat.completions.create(
         model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
         messages=[
             {"role": "system", "content": ANGEL_SYSTEM_PROMPT},
-            {"role": "user", "content": dilemma}
+            {"role": "user", "content": message}
         ],
         temperature=0.7,
         max_tokens=500,
@@ -152,12 +152,12 @@ async def generate_angel_response_stream(dilemma: str, client: Fireworks) -> Asy
         if chunk.choices[0].delta.content is not None:
             yield chunk.choices[0].delta.content
 
-async def generate_devil_response_stream(dilemma: str, client: Fireworks) -> AsyncGenerator[str, None]:
+async def generate_devil_response_stream(message: str, client: Fireworks) -> AsyncGenerator[str, None]:
     stream = client.chat.completions.create(
         model="accounts/sentientfoundation/models/dobby-mini-unhinged-llama-3-1-8b#accounts/sentientfoundation/deployments/81e155fc",
         messages=[
             {"role": "system", "content": DEVIL_SYSTEM_PROMPT},
-            {"role": "user", "content": dilemma}
+            {"role": "user", "content": message}
         ],
         temperature=0.7,
         max_tokens=500,
@@ -180,14 +180,14 @@ async def stream_response(generator: AsyncGenerator[str, None]):
 @app.post("/api/angel/stream")
 async def angel_stream_endpoint(request: ConversationRequest):
     return StreamingResponse(
-        stream_response(generate_angel_response_stream(request.dilemma, client)),
+        stream_response(generate_angel_response_stream(request.message, client)),
         media_type="text/event-stream"
     )
 
 @app.post("/api/devil/stream")
 async def devil_stream_endpoint(request: ConversationRequest):
     return StreamingResponse(
-        stream_response(generate_devil_response_stream(request.dilemma, client)),
+        stream_response(generate_devil_response_stream(request.message, client)),
         media_type="text/event-stream"
     )
 
